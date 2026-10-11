@@ -14,7 +14,7 @@ import { TerminalView } from "@/features/terminal/TerminalView";
 import { closeSessionTab } from "@/features/terminal/connect";
 import { UnlockScreen } from "@/features/unlock/UnlockScreen";
 import { useT, type MessageKey } from "@/i18n";
-import { api } from "@/ipc/api";
+import { api, isTauri } from "@/ipc/api";
 import { ContextMenuHost } from "./ContextMenu";
 import { useVaultData } from "./data";
 import { useShortcuts, type ShortcutAction } from "./shortcuts";
@@ -35,6 +35,7 @@ export function App() {
   const platform = useApp((st) => st.info.platform);
 
   useGlobalEvents();
+  useWindowStateAttr();
   useAiLifecycle();
   useActivityPing(phase === "unlocked");
   useStartupUpdateCheck(phase === "unlocked");
@@ -204,6 +205,42 @@ function useGlobalEvents() {
       }),
     ];
     return () => subs.forEach((p) => void p.then((un) => un()));
+  }, []);
+}
+
+/**
+ * Marks :root with data-maximized while the window is maximized, so the floating-window
+ * chrome a platform paints (Linux) can drop its margin, radius and shadow.
+ */
+function useWindowStateAttr() {
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+      const win = getCurrentWindow();
+      const update = async () => {
+        const root = document.documentElement;
+        if (await win.isMaximized()) root.dataset.maximized = "";
+        else delete root.dataset.maximized;
+      };
+      void update();
+      // The WM may still report the old state when the resize event arrives, so re-check
+      // once shortly after to make sure a restore can't leave data-maximized stuck on.
+      return win
+        .onResized(() => {
+          void update();
+          setTimeout(() => void update(), 150);
+        })
+        .then((u) => {
+          if (disposed) u();
+          else unlisten = u;
+        });
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 }
 

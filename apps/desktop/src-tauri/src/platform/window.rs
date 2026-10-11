@@ -42,6 +42,12 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<(WebviewWindow, bool
     #[cfg(target_os = "windows")]
     let builder = builder.transparent(true).shadow(true);
 
+    // Linux draws no chrome around an undecorated window, so the app paints its own (rounded
+    // corners, shadow, hairline ring) into the transparent margin the webview needs here.
+    // Without a compositor (bare X11) the margin renders opaque instead of transparent.
+    #[cfg(target_os = "linux")]
+    let builder = builder.transparent(true);
+
     let window = builder.build()?;
     let mica = apply_material(&window);
     Ok((window, mica))

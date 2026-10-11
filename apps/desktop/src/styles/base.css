@@ -19,8 +19,11 @@ html {
   background: var(--win);
 }
 
+/* Mica (Windows 11) and the CSS-painted window chrome on Linux need a transparent page. */
 :root[data-material="mica"],
-:root[data-material="mica"] body {
+:root[data-material="mica"] body,
+:root[data-platform="linux"],
+:root[data-platform="linux"] body {
   background: transparent;
 }
 

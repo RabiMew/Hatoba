@@ -156,6 +156,17 @@
   --side: var(--side-translucent);
 }
 
+/* Linux gets no shadow or rounding from the compositor on an undecorated window, so the app
+   paints its own chrome: --win-pad leaves room for the shadow in the transparent margin. */
+:root[data-platform="linux"] {
+  --win-pad: 22px;
+  --shadow-window: 0 10px 28px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-platform="linux"][data-theme="dark"] {
+  --shadow-window: 0 10px 28px rgba(0, 0, 0, 0.62), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 /* CJK font order: Japanese UI should prefer Yu Gothic over YaHei for unified Han glyphs */
 :root:lang(ja) {
   --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont,
