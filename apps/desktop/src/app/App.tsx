@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { ConfirmHost, setOverlaysLocked, ToastHost } from "@/components/overlay";
 import { toggleAiPanel } from "@/features/ai/actions";
 import { AiPanel } from "@/features/ai/AiPanel";
@@ -14,8 +14,9 @@ import { TerminalView } from "@/features/terminal/TerminalView";
 import { closeSessionTab } from "@/features/terminal/connect";
 import { UnlockScreen } from "@/features/unlock/UnlockScreen";
 import { useT, type MessageKey } from "@/i18n";
-import { api, isTauri } from "@/ipc/api";
+import { api } from "@/ipc/api";
 import { ContextMenuHost } from "./ContextMenu";
+import { ResizeHandles } from "./ResizeHandles";
 import { useVaultData } from "./data";
 import { useShortcuts, type ShortcutAction } from "./shortcuts";
 import { Sidebar } from "./Sidebar";
@@ -35,7 +36,7 @@ export function App() {
   const platform = useApp((st) => st.info.platform);
 
   useGlobalEvents();
-  useWindowStateAttr();
+  useWindowChrome();
   useAiLifecycle();
   useActivityPing(phase === "unlocked");
   useStartupUpdateCheck(phase === "unlocked");
@@ -48,6 +49,7 @@ export function App() {
         <ConfirmHost />
         <ToastHost />
         <ContextMenuHost platform={platform} />
+        <ResizeHandles platform={platform} />
       </>
     );
 
@@ -66,6 +68,7 @@ export function App() {
       <ConfirmHost />
       <ToastHost />
       <ContextMenuHost platform={platform} />
+      <ResizeHandles platform={platform} />
     </>
   );
 }
@@ -203,45 +206,33 @@ function useGlobalEvents() {
         // Pulls may have changed hosts/keys; refresh what the UI shows.
         if (status.state === "idle" && useApp.getState().phase === "unlocked") void useVaultData.getState().reload();
       }),
+      api
+        .listen("window://chrome", ({ floating }) => useApp.setState({ floating }))
+        // A chrome change between the boot-time read and this listener would be lost, so
+        // re-read once the listener is registered. Errors are ignored: the next event wins.
+        .then((un) => {
+          void api
+            .window_floating()
+            .then((floating) => useApp.setState({ floating }))
+            .catch(() => {});
+          return un;
+        }),
     ];
     return () => subs.forEach((p) => void p.then((un) => un()));
   }, []);
 }
 
 /**
- * Marks :root with data-maximized while the window is maximized, so the floating-window
- * chrome a platform paints (Linux) can drop its margin, radius and shadow.
+ * Mirrors the store's floating state to :root[data-floating], which gates the painted window
+ * chrome's CSS (Linux). A layout effect puts the attribute on before the first painted frame.
  */
-function useWindowStateAttr() {
-  useEffect(() => {
-    if (!isTauri()) return;
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-      const win = getCurrentWindow();
-      const update = async () => {
-        const root = document.documentElement;
-        if (await win.isMaximized()) root.dataset.maximized = "";
-        else delete root.dataset.maximized;
-      };
-      void update();
-      // The WM may still report the old state when the resize event arrives, so re-check
-      // once shortly after to make sure a restore can't leave data-maximized stuck on.
-      return win
-        .onResized(() => {
-          void update();
-          setTimeout(() => void update(), 150);
-        })
-        .then((u) => {
-          if (disposed) u();
-          else unlisten = u;
-        });
-    });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
+function useWindowChrome() {
+  const floating = useApp((st) => st.floating);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (floating) root.dataset.floating = "";
+    else delete root.dataset.floating;
+  }, [floating]);
 }
 
 /** Feeds the backend's idle auto-lock timer (SEC-02) with user activity, at most every 20 s. */
