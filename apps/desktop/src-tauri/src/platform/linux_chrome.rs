@@ -12,6 +12,11 @@
 //!   surviving ring and starts resize drags from there.
 //! - The chrome turns off while maximized, fullscreen or tiled (the margin would look wrong),
 //!   and without a compositor, where the margin renders opaque instead of transparent.
+//!
+//! Tiling is only seen when the WM reports it: xdg-shell's tiled states on Wayland, and on X11
+//! Mutter's `_GTK_EDGE_CONSTRAINTS` or a vertical-only maximize. KWin on X11 keeps quick tiling
+//! to itself, so a quick-tiled window there keeps its chrome, as GTK's own client-side
+//! decorations do.
 
 use std::cell::Cell;
 use std::rc::Rc;
